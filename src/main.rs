@@ -142,16 +142,44 @@ fn main() -> Result<(), Box<dyn Error>> {
     loop {
         let readline = rl.readline("# ");
         match readline {
-            Ok(line) => match tags_with_files.get(&line) {
-                Some(files) => {
-                    for file in files {
+            Ok(line) => {
+                let query: Vec<&str> = line.split("+").collect();
+                if query.len() > 1 {
+                    let tag0 = query.get(0).unwrap();
+                    let mut result_files: HashSet<String> = tags_with_files
+                        .get(*tag0)
+                        .unwrap()
+                        .iter()
+                        .map(|file| file.to_string())
+                        .collect();
+                    for tag in &query[1..] {
+                        let other_files: HashSet<String> = tags_with_files
+                            .get(*tag)
+                            .unwrap()
+                            .iter()
+                            .map(|file| file.to_string())
+                            .collect();
+                        result_files = result_files
+                            .intersection(&other_files)
+                            .map(|file| file.to_string())
+                            .collect();
+                    }
+                    for file in result_files {
                         println!("{file}");
                     }
+                    continue;
                 }
-                None => {
-                    println!("Tag not found")
+                match tags_with_files.get(&line) {
+                    Some(files) => {
+                        for file in files {
+                            println!("{file}");
+                        }
+                    }
+                    None => {
+                        println!("Tag not found")
+                    }
                 }
-            },
+            }
             Err(ReadlineError::Interrupted) => {
                 break;
             }
