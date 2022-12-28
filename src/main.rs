@@ -91,7 +91,7 @@ impl Completer for TagHelper {
     fn complete(
         &self,
         line: &str,
-        _pos: usize,
+        pos: usize,
         _ctx: &Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Pair>)> {
         if line.is_empty() {
@@ -104,6 +104,20 @@ impl Completer for TagHelper {
                 })
                 .collect();
             return Ok((0, candidates));
+        }
+        let query: Vec<&str> = line.split("+").collect::<Vec<&str>>();
+        if query.len() > 1 {
+            let search = query.last().unwrap();
+            let candidates = self
+                .tags
+                .iter()
+                .filter(|tag| tag.starts_with(search))
+                .map(|tag| Pair {
+                    display: tag.to_string(),
+                    replacement: tag.to_string(),
+                })
+                .collect();
+            return Ok((pos - search.len(), candidates));
         }
         let candidates = self
             .tags
