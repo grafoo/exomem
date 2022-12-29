@@ -10,6 +10,10 @@ use glob::{glob, Paths};
 use lazy_static::lazy_static;
 use regex::Regex;
 
+use eframe::egui;
+use egui::plot::{Plot, Points};
+use egui::widgets::plot::Legend;
+use egui::widgets::plot::MarkerShape::Circle;
 use rustyline::completion::{Completer, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::Highlighter;
@@ -136,7 +140,49 @@ impl Highlighter for TagHelper {}
 
 impl Validator for TagHelper {}
 
+#[derive(Default)]
+struct App {}
+
+impl App {
+    fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+        Self::default()
+    }
+}
+
+impl eframe::App for App {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            // TODO: implement files/tag graph
+            let tag_points = vec![([1.0, 1.0], "foo"), ([2.0, 2.5], "bar")];
+            let named_tag_points: Vec<Points> = tag_points
+                .iter()
+                .map(|p| Points::new(vec![p.0]).shape(Circle).radius(5.0).name(p.1))
+                .collect();
+            Plot::new("Files with tags")
+                .view_aspect(1.0)
+                .show_axes([false; 2])
+                .legend(Legend::default())
+                .show(ui, |plot_ui| {
+                    for points in named_tag_points {
+                        plot_ui.points(points);
+                    }
+                });
+        });
+    }
+}
+
+fn gui() {
+    eframe::run_native(
+        "exomem",
+        eframe::NativeOptions::default(),
+        Box::new(|cc| Box::new(App::new(cc))),
+    );
+}
+
+// TODO: add cli arguments for (i)nteractive,  (g)ui
 fn main() -> Result<(), Box<dyn Error>> {
+    gui();
+    return Ok(());
     let args: Vec<String> = env::args().collect();
     let root_directory = &args[1];
     let file_paths = find_md_file_paths(&root_directory);
