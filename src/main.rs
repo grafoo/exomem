@@ -181,8 +181,8 @@ fn gui() {
 
 // TODO: add cli arguments for (i)nteractive,  (g)ui
 fn main() -> Result<(), Box<dyn Error>> {
-    gui();
-    return Ok(());
+    // gui();
+    // return Ok(());
     let args: Vec<String> = env::args().collect();
     let root_directory = &args[1];
     let file_paths = find_md_file_paths(&root_directory);
@@ -195,9 +195,14 @@ fn main() -> Result<(), Box<dyn Error>> {
             .edit_mode(EditMode::Emacs)
             .build(),
     )?;
+    let mut helper_tags = tags_with_files
+        .keys()
+        .map(|key| key.to_string())
+        .collect::<Vec<String>>();
+    helper_tags.sort_unstable();
     rl.set_helper(Some(TagHelper {
         hinter: HistoryHinter {},
-        tags: tags_with_files.keys().map(|key| key.to_string()).collect(),
+        tags: helper_tags,
     }));
     loop {
         let readline = rl.readline("# ");
