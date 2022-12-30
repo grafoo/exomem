@@ -3,7 +3,7 @@ use std::env;
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use glob::{glob, Paths};
 
@@ -14,6 +14,7 @@ use eframe::egui;
 use egui::plot::{Plot, Points};
 use egui::widgets::plot::Legend;
 use egui::widgets::plot::MarkerShape::Circle;
+
 use rustyline::completion::{Completer, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::Highlighter;
@@ -22,6 +23,8 @@ use rustyline::validate::Validator;
 use rustyline::Editor;
 use rustyline::{CompletionType, Config, Context, EditMode};
 use rustyline_derive::{Helper, Hinter};
+
+use clap::{ArgGroup, Parser};
 
 // TODO: do this non line based
 fn find_tags(file_path: &Path) -> Option<HashSet<String>> {
@@ -79,8 +82,9 @@ fn process_files(
     (files_with_tags, tags_with_files)
 }
 
-fn find_md_file_paths(root_directory: &str) -> Paths {
-    glob(format!("{root_directory}/**/*.md").as_str()).expect("[FAIL] Reading glob pattern")
+fn find_md_file_paths(exomem_dir: &Path) -> Paths {
+    let dir = exomem_dir.to_str().unwrap();
+    glob(format!("{dir}/**/*.md").as_str()).expect("[FAIL] Reading glob pattern")
 }
 
 #[derive(Helper, Hinter)]
@@ -179,13 +183,41 @@ fn gui() {
     );
 }
 
-// TODO: add cli arguments for (i)nteractive,  (g)ui
+#[derive(Parser, Debug)]
+#[command(version)]
+#[command(group(ArgGroup::new("mode").required(false).args(["repl", "gui"])))]
+struct Args {
+    #[arg(short, long, default_value_t = true)]
+    repl: bool,
+    #[arg(short, long, default_value_t = false)]
+    gui: bool,
+    #[arg(default_value_t = String::from("~/exomem"))]
+    dir: String,
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
-    // gui();
-    // return Ok(());
-    let args: Vec<String> = env::args().collect();
-    let root_directory = &args[1];
-    let file_paths = find_md_file_paths(&root_directory);
+    let args = Args::parse();
+    let mut exomem_dir_path = PathBuf::from("/");
+    if args.dir.starts_with("~/") {
+        match env::var("HOME") {
+            Ok(env_var_home) => {
+                exomem_dir_path.push(env_var_home);
+                exomem_dir_path.push("exomem");
+            }
+            Err(_err) => {
+                let err_msg: Box<dyn Error> = String::from(
+                    "Reading env var HOME failed; Provide DIR argument with full path.",
+                )
+                .into();
+                return Err(err_msg);
+            }
+        }
+    }
+    if args.gui {
+        gui();
+        return Ok(());
+    }
+    let file_paths = find_md_file_paths(exomem_dir_path.as_path());
     // TODO: use _files_with_tags for graph export
     let (_files_with_tags, tags_with_files) = process_files(file_paths);
     let mut rl = Editor::with_config(
