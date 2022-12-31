@@ -14,3 +14,6 @@ lazy_static = "1.4.0"
 eframe = "0.20.1"
 clap = { version = "4.0.32", features = ["derive"] }
 
+[[bin]]
+name = "em"
+path = "src/main.rs"
