@@ -13,4 +13,13 @@ rustyline-derive = "0.7.0"
 lazy_static = "1.4.0"
 eframe = "0.20.1"
 clap = { version = "4.0.32", features = ["derive"] }
+fdg-macroquad = "0.4.0"
+itertools = "0.10.5"
 
+[[bin]]
+name = "em"
+path = "src/main.rs"
+
+[[bin]]
+name = "gui"
+path = "src/gui.rs"
