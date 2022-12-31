@@ -191,7 +191,7 @@ struct Args {
     repl: bool,
     #[arg(short, long, default_value_t = false)]
     gui: bool,
-    #[arg(default_value_t = String::from("~/exomem"))]
+    #[arg(default_value_t = String::from("~/exomem.d"))]
     dir: String,
 }
 
@@ -202,7 +202,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         match env::var("HOME") {
             Ok(env_var_home) => {
                 exomem_dir_path.push(env_var_home);
-                exomem_dir_path.push("exomem");
+                exomem_dir_path.push("exomem.d");
             }
             Err(_err) => {
                 let err_msg: Box<dyn Error> = String::from(
