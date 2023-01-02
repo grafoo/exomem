@@ -10,10 +10,7 @@ use glob::{glob, Paths};
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use eframe::egui;
-use egui::plot::{Plot, Points};
-use egui::widgets::plot::Legend;
-use egui::widgets::plot::MarkerShape::Circle;
+use eframe::{egui, epi};
 
 use rustyline::completion::{Completer, Pair};
 use rustyline::error::ReadlineError;
@@ -21,10 +18,12 @@ use rustyline::highlight::Highlighter;
 use rustyline::hint::HistoryHinter;
 use rustyline::validate::Validator;
 use rustyline::Editor;
-use rustyline::{CompletionType, Config, Context, EditMode};
+use rustyline::{CompletionType, Config, EditMode};
 use rustyline_derive::{Helper, Hinter};
 
 use clap::{ArgGroup, Parser};
+
+use egui_nodes::{LinkArgs, NodeConstructor};
 
 // TODO: do this non line based
 fn find_tags(file_path: &Path) -> Option<HashSet<String>> {
@@ -100,7 +99,7 @@ impl Completer for TagHelper {
         &self,
         line: &str,
         pos: usize,
-        _ctx: &Context<'_>,
+        _ctx: &rustyline::Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Pair>)> {
         if line.is_empty() {
             let candidates = self
@@ -144,43 +143,60 @@ impl Highlighter for TagHelper {}
 
 impl Validator for TagHelper {}
 
-#[derive(Default)]
-struct App {}
+struct App {
+    ctx: egui_nodes::Context,
+    links: Vec<(usize, usize)>,
+}
 
-impl App {
-    fn new(_cc: &eframe::CreationContext<'_>) -> Self {
-        Self::default()
+impl Default for App {
+    fn default() -> Self {
+        Self {
+            ctx: egui_nodes::Context::default(),
+            links: Vec::new(),
+        }
+    }
+}
+fn graph(ctx: &mut egui_nodes::Context, links: &mut Vec<(usize, usize)>, ui: &mut egui::Ui) {
+    let nodes = vec![
+        NodeConstructor::new(0, Default::default())
+            .with_title(|ui| ui.label("Foo"))
+            .with_input_attribute(0, Default::default(), |ui| ui.label("In"))
+            .with_output_attribute(1, Default::default(), |ui| ui.label("Out")),
+        NodeConstructor::new(1, Default::default())
+            .with_title(|ui| ui.label("Bar"))
+            .with_input_attribute(3, Default::default(), |ui| ui.label("In"))
+            .with_output_attribute(4, Default::default(), |ui| ui.label("Out")),
+    ];
+    ctx.show(
+        nodes,
+        links
+            .iter()
+            .enumerate()
+            .map(|(i, (start, end))| (i, *start, *end, LinkArgs::default())),
+        ui,
+    );
+    if let Some(idx) = ctx.link_destroyed() {
+        links.remove(idx);
+    }
+    if let Some((start, end, _)) = ctx.link_created() {
+        links.push((start, end))
     }
 }
 
-impl eframe::App for App {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+impl epi::App for App {
+    fn name(&self) -> &str {
+        "exomem"
+    }
+    fn update(&mut self, ctx: &egui::CtxRef, _frame: &mut epi::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            // TODO: implement files/tag graph
-            let tag_points = vec![([1.0, 1.0], "foo"), ([2.0, 2.5], "bar")];
-            let named_tag_points: Vec<Points> = tag_points
-                .iter()
-                .map(|p| Points::new(vec![p.0]).shape(Circle).radius(5.0).name(p.1))
-                .collect();
-            Plot::new("Files with tags")
-                .view_aspect(1.0)
-                .show_axes([false; 2])
-                .legend(Legend::default())
-                .show(ui, |plot_ui| {
-                    for points in named_tag_points {
-                        plot_ui.points(points);
-                    }
-                });
+            ui.heading("foo");
+            graph(&mut self.ctx, &mut self.links, ui);
         });
     }
 }
 
 fn gui() {
-    eframe::run_native(
-        "exomem",
-        eframe::NativeOptions::default(),
-        Box::new(|cc| Box::new(App::new(cc))),
-    );
+    eframe::run_native(Box::new(App::default()), eframe::NativeOptions::default());
 }
 
 #[derive(Parser, Debug)]
