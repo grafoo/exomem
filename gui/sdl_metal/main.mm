@@ -1,6 +1,9 @@
 #include "imgui.h"
 #include "imgui_impl_sdl.h"
 #include "imgui_impl_metal.h"
+
+#include "imnodes.h"
+
 #include <stdio.h>
 #include <SDL.h>
 
@@ -12,6 +15,7 @@ int main(int, char**)
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    ImNodes::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;   // Enable Gamepad Controls
@@ -72,6 +76,9 @@ int main(int, char**)
     MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor new];
 
     // Our state
+    bool create_link_1 = true;
+    bool create_link_2 = false;
+    bool position_nodes = true;
     float clear_color[4] = {0.45f, 0.55f, 0.60f, 1.00f};
 
     // Main loop
@@ -113,9 +120,59 @@ int main(int, char**)
             ImGui_ImplSDL2_NewFrame();
             ImGui::NewFrame();
 
-
-
-
+            ImNodes::BeginNodeEditor();
+            // Enable panning with Alt Key if no third Mouse Button is available
+            ImNodes::GetIO().EmulateThreeButtonMouse.Modifier = &ImGui::GetIO().KeyAlt;
+            // Create first node
+            ImNodes::BeginNode(10);
+            ImNodes::BeginNodeTitleBar();
+            ImGui::TextUnformatted("Node 1");
+            ImNodes::EndNodeTitleBar();
+            // Make node larger if needed
+            // ImGui::Dummy(ImVec2(25.0f, 25.0f));
+            ImNodes::BeginInputAttribute(11);
+            ImGui::Text("Input");
+            ImNodes::EndInputAttribute();
+            ImNodes::BeginOutputAttribute(12);
+            ImGui::Text("Output");
+            ImNodes::EndOutputAttribute();
+            ImNodes::EndNode();
+            // Create second node
+            ImNodes::BeginNode(20);
+            ImNodes::BeginNodeTitleBar();
+            ImGui::TextUnformatted("Node 2");
+            ImNodes::EndNodeTitleBar();
+            ImNodes::BeginInputAttribute(21);
+            ImGui::Text("Input");
+            ImNodes::EndInputAttribute();
+            ImNodes::BeginOutputAttribute(22);
+            ImGui::Text("Output");
+            ImNodes::EndOutputAttribute();
+            ImNodes::EndNode();
+            // Link nodes
+            if(create_link_1) {
+                ImNodes::Link(1, 12, 21);
+            }
+            if(create_link_2) {
+                ImNodes::Link(2, 11, 22);
+            }
+            // Position nodes, so they won't overlap with each other or the minimap
+            if(position_nodes) {
+                ImNodes::SetNodeScreenSpacePos(10, ImVec2(200.0f, 100.0f));
+                ImNodes::SetNodeScreenSpacePos(20, ImVec2(250.0f, 300.0f));
+                position_nodes = false;
+            }
+            // Show Minimap
+            ImNodes::MiniMap();
+            ImNodes::EndNodeEditor();
+            // Check if user creates a link
+            {
+                int id_input_node_1 = 11;
+                int id_output_node_2 = 22;
+                if(ImNodes::IsLinkCreated(&id_input_node_1, &id_output_node_2)) {
+                    create_link_2 = true;
+                }
+            }
 
             // Rendering
             ImGui::Render();
