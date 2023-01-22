@@ -4,10 +4,12 @@ use fdg_macroquad::macroquad;
 use fdg_macroquad::run_window;
 use itertools::Itertools;
 use std::collections::HashMap;
+use std::error::Error;
 #[macroquad::main("exomem")]
-async fn main() {
+async fn main() -> Result<(), Box<dyn Error>> {
     let mut graph: ForceGraph<(), ()> = ForceGraph::default();
-    let file_paths = find_md_file_paths(exomem_dir_path("~/exomem.d".to_string()).as_path());
+    let exomem_dir_path = exomem_dir_path()?;
+    let file_paths = find_md_file_paths(exomem_dir_path.as_path());
     let (files_with_tags, tags_with_files) = process_files(file_paths);
     let mut file_nodes: HashMap<&String, _> = HashMap::new();
     // i am a petgraph::graph::NodeIndex-^
@@ -56,4 +58,5 @@ async fn main() {
         }
     }
     run_window(&graph).await;
+    Ok(())
 }

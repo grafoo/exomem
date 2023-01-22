@@ -67,24 +67,59 @@ pub fn process_files(
     (files_with_tags, tags_with_files)
 }
 
-pub fn exomem_dir_path(dir: String) -> PathBuf {
+pub fn home_path() -> Result<PathBuf, Box<dyn Error>> {
+    let home = env::var("HOME")?;
+    Ok(PathBuf::from(home))
+}
+
+pub fn exomem_dir_path() -> Result<PathBuf, Box<dyn Error>> {
     let mut exomem_dir_path = PathBuf::from("/");
-    if dir.starts_with("~/") {
-        match env::var("HOME") {
-            Ok(env_var_home) => {
-                exomem_dir_path.push(env_var_home);
-                exomem_dir_path.push("exomem.d");
-            }
-            Err(_err) => {
-                let err_msg: Box<dyn Error> = String::from(
-                    "Reading env var HOME failed; Provide DIR argument with full path.",
-                )
-                .into();
-                // return Err(err_msg);
+    let home_path = home_path()?;
+    exomem_dir_path.push(home_path);
+    exomem_dir_path.push("exomem.d");
+    Ok(exomem_dir_path)
+}
+
+// TODO: implement
+pub fn add_link(text: String) -> Result<&'static str, &'static str> {
+    lazy_static! {
+        static ref RE_MD_LINK: Regex = Regex::new(r"\[\w+]\(\w+\)").unwrap();
+    }
+    if !RE_MD_LINK.is_match(&text) {
+        return Err("Unsupported link format");
+    }
+    let exomem_dir_path = exomem_dir_path();
+    let file_path = Path::new("");
+    Ok("")
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::env::{set_var, var};
+    use std::path::PathBuf;
+    #[test]
+    fn home_path_returns_pathbuf_when_home_env_var_is_set() {
+        let expected = PathBuf::from("/home/foo");
+        set_var("HOME", "/home/foo");
+        if let Ok(_) = var("HOME") {
+            if let Ok(home_path) = home_path() {
+                assert_eq!(expected, home_path);
+            } else {
+                panic!();
             }
         }
-    } else {
     }
-
-    exomem_dir_path
+    #[test]
+    fn exomem_dir_path_returns_valid_pathbuf() {
+        let expected = PathBuf::from("/home/foo/exomem.d");
+        set_var("HOME", "/home/foo");
+        if let Ok(_) = var("HOME") {
+            if let Ok(exomem_dir_path) = exomem_dir_path() {
+                assert_eq!(expected, exomem_dir_path);
+            } else {
+                panic!();
+            }
+        }
+    }
 }

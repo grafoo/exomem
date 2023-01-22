@@ -1,15 +1,9 @@
-use exomem::{exomem_dir_path, find_md_file_paths, process_files};
-use std::collections::HashSet;
-
-use std::error::Error;
-
-use std::path::{Path, PathBuf};
-
+use clap::{ArgGroup, Parser};
 use eframe::egui;
 use egui::plot::{Plot, Points};
 use egui::widgets::plot::Legend;
 use egui::widgets::plot::MarkerShape::Circle;
-
+use exomem::{exomem_dir_path, find_md_file_paths, process_files};
 use rustyline::completion::{Completer, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::Highlighter;
@@ -18,8 +12,8 @@ use rustyline::validate::Validator;
 use rustyline::Editor;
 use rustyline::{CompletionType, Config, Context, EditMode};
 use rustyline_derive::{Helper, Hinter};
-
-use clap::{ArgGroup, Parser};
+use std::collections::HashSet;
+use std::error::Error;
 
 #[derive(Helper, Hinter)]
 struct TagHelper {
@@ -136,7 +130,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         gui();
         return Ok(());
     }
-    let file_paths = find_md_file_paths(exomem_dir_path(args.dir).as_path());
+    let exomem_dir_path = exomem_dir_path()?;
+    let file_paths = find_md_file_paths(exomem_dir_path.as_path());
     // TODO: use _files_with_tags for graph export
     let (_files_with_tags, tags_with_files) = process_files(file_paths);
     let mut rl = Editor::with_config(
@@ -159,6 +154,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         let readline = rl.readline("# ");
         match readline {
             Ok(line) => {
+                if line.starts_with(":add") {
+                    // TODO
+                }
                 let query: Vec<&str> = line.split("+").collect();
                 if query.len() > 1 {
                     let tag0 = query.get(0).unwrap();
