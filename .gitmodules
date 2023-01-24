@@ -1,0 +1,3 @@
+[submodule "dep/fdg"]
+	path = dep/fdg
+	url = git@github.com:grafoo/fdg.git
