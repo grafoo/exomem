@@ -3,7 +3,10 @@ use eframe::egui;
 use egui::plot::{Plot, Points};
 use egui::widgets::plot::Legend;
 use egui::widgets::plot::MarkerShape::Circle;
-use exomem::{exomem_dir_path, find_md_file_paths, process_files};
+use exomem::{
+    add_link, exomem_dir_path, find_md_file_paths, format_link_file_content, link_line_to_struct,
+    process_files,
+};
 use rustyline::completion::{Completer, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::Highlighter;
@@ -41,6 +44,17 @@ impl Completer for TagHelper {
                 .collect();
             return Ok((0, candidates));
         }
+        // match commands
+        if line.starts_with(":") {
+            return Ok((
+                pos - line.len(),
+                vec![Pair {
+                    display: ":add".to_string(),
+                    replacement: ":add".to_string(),
+                }],
+            ));
+        }
+        // match tags
         let query: Vec<&str> = line.split("+").collect::<Vec<&str>>();
         if query.len() > 1 {
             let search = query.last().unwrap();
@@ -154,9 +168,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         let readline = rl.readline("# ");
         match readline {
             Ok(line) => {
-                if line.starts_with(":add") {
-                    // TODO
+                if line.starts_with(":add ") {
+                    if let Some(link_line) = line.splitn(2, " ").nth(1) {
+                        match add_link(link_line.to_string()) {
+                            Ok(_) => println!("✓"),
+                            Err(err) => println!("✗ {:?}", err),
+                        }
+                    }
+                    continue;
                 }
+
                 let query: Vec<&str> = line.split("+").collect();
                 if query.len() > 1 {
                     let tag0 = query.get(0).unwrap();

@@ -5,6 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::env;
 use std::error::Error;
 use std::fs::File;
+use std::io::Write;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 pub fn find_md_file_paths(exomem_dir: &Path) -> Paths {
@@ -80,17 +81,80 @@ pub fn exomem_dir_path() -> Result<PathBuf, Box<dyn Error>> {
     Ok(exomem_dir_path)
 }
 
-// TODO: implement
-pub fn add_link(text: String) -> Result<&'static str, &'static str> {
+#[derive(Debug, PartialEq)]
+pub struct Link {
+    name: String,
+    href: String,
+    tags: Vec<String>,
+}
+
+#[derive(Debug)]
+pub struct LinkTitleError(Box<dyn Error>);
+impl std::error::Error for LinkTitleError {}
+impl std::fmt::Display for LinkTitleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "LinkTitleError: {}", self.0)
+    }
+}
+
+pub fn link_line_to_struct(link: &str) -> Option<Link> {
     lazy_static! {
-        static ref RE_MD_LINK: Regex = Regex::new(r"\[\w+]\(\w+\)").unwrap();
+        static ref RE_MD_LINK: Regex =
+            Regex::new(r"\[(?P<title>.+)\]\((?P<href>.+)\)(?P<tags>(#[\w\-_]+)*)").unwrap();
     }
-    if !RE_MD_LINK.is_match(&text) {
-        return Err("Unsupported link format");
+    if let Some(captures) = RE_MD_LINK.captures(&link) {
+        let title = captures.name("title").map_or("", |t| t.as_str());
+        let href = captures.name("href").map_or("", |h| h.as_str());
+        let tags = captures.name("tags").map_or("", |t| t.as_str());
+        if title.is_empty() || href.is_empty() {
+            return None;
+        }
+        let link_file = Link {
+            name: title.to_string(),
+            href: href.to_string(),
+            tags: tags
+                .split("#")
+                .filter(|t| !t.is_empty())
+                .map(|t| t.to_string())
+                .collect(),
+        };
+        return Some(link_file);
+    } else {
+        return None;
     }
-    let exomem_dir_path = exomem_dir_path();
-    let file_path = Path::new("");
-    Ok("")
+}
+
+pub fn format_link_file_content(link: Link) -> Result<String, Box<dyn Error>> {
+    let mut content = String::from("");
+    for tag in &link.tags {
+        content.push_str(format!("#{tag} ").as_str());
+    }
+    content.pop();
+    if link.tags.len() > 0 {
+        content.push_str(format!("\n\n").as_str());
+    }
+    content.push_str(format!("[{}]({})\n", link.name, link.href).as_str());
+    Ok(content)
+}
+
+// pub fn add_link(line: String) -> Result<&'static str, Box<dyn Error>> {
+pub fn add_link(line: String) -> Result<(), Box<dyn Error>> {
+    if let Some(link) = link_line_to_struct(&line) {
+        let mut path = exomem_dir_path()?;
+        path.push(format!("{}.md", link.name));
+        let mut file = File::create(path)?;
+        let content = format_link_file_content(link)?;
+        file.write_all(content.as_bytes())?;
+        // if let Some(s) = path.to_str() {
+        //     // return Ok(s);
+        //     return Ok(());
+        // } else {
+        //     unreachable!();
+        // }
+        Ok(())
+    } else {
+        return Err(Box::new(LinkTitleError { 0: "foo".into() }));
+    }
 }
 
 #[cfg(test)]
@@ -120,6 +184,34 @@ mod test {
             } else {
                 panic!();
             }
+        }
+    }
+    #[test]
+    fn link_to_struct_accepts_valid_link() {
+        let expected = Link {
+            name: "foo-title".to_string(),
+            href: "https://foo.tld".to_string(),
+            tags: vec!["foo-tag".to_string(), "bar_tag".to_string()],
+        };
+        let s = "[foo-title](https://foo.tld)#foo-tag#bar_tag";
+        if let Some(link_file) = link_to_struct(s) {
+            assert_eq!(expected, link_file);
+        } else {
+            panic!();
+        }
+    }
+    #[test]
+    fn format_link_file_content_returns_markdown_str() {
+        let link = Link {
+            name: "foo-title".to_string(),
+            href: "https://foo.tld".to_string(),
+            tags: vec!["foo-tag".to_string(), "bar_tag".to_string()],
+        };
+        let expected = format!("#foo-tag #bar_tag\n\n[foo-title](https://foo.tld)\n");
+        if let Ok(content) = format_link_file_content(link) {
+            assert_eq!(expected, content);
+        } else {
+            panic!();
         }
     }
 }
