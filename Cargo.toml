@@ -15,6 +15,9 @@ eframe = "0.20.1"
 clap = { version = "4.0.32", features = ["derive"] }
 fdg-macroquad = { path = "dep/fdg/fdg-macroquad", version = "0.4.0"}
 itertools = "0.10.5"
+ureq = "2.6.2"
+scraper = "0.14.0"
+clipboard = "0.5.0"
 
 [[bin]]
 name = "em"

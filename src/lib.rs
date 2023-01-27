@@ -1,6 +1,7 @@
 use glob::{glob, Paths};
 use lazy_static::lazy_static;
 use regex::Regex;
+use scraper::{Html, Selector};
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::error::Error;
@@ -8,11 +9,14 @@ use std::fs::File;
 use std::io::Write;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
+use ureq;
+
 pub fn find_md_file_paths(exomem_dir: &Path) -> Paths {
     let dir = exomem_dir.to_str().unwrap();
     glob(format!("{dir}/**/*.md").as_str()).expect("[FAIL] Reading glob pattern")
 }
-// TODO: do this non line based
+
+// TODO: match over multiple lines
 fn find_tags(file_path: &Path) -> Option<HashSet<String>> {
     lazy_static! {
         static ref RE_TAGS: Regex = Regex::new(r"((?:#\w+\s*)+)").unwrap();
@@ -97,10 +101,47 @@ impl std::fmt::Display for LinkTitleError {
     }
 }
 
+pub fn url_to_markdown_link(url: &str) -> Option<String> {
+    lazy_static! {
+        static ref RE_URL: Regex = Regex::new(r#"^https?://"#).unwrap();
+    }
+    if RE_URL.is_match(&url) {
+        let text = ureq::get(url).call().ok()?.into_string().ok()?;
+        let html = Html::parse_document(&text);
+        // <meta name="keywords" content="foo, bar, num">
+        let keywords_selector = Selector::parse(r#"meta[name="keywords"]"#).unwrap();
+        let tags: Vec<String> = match html.select(&keywords_selector).next() {
+            Some(meta) => match meta.value().attr("content") {
+                Some(keywords) => keywords.split(",").map(|k| k.trim().to_string()).collect(),
+                None => vec![],
+            },
+            None => vec![],
+        };
+        let title_selector = Selector::parse(r#"title"#).unwrap();
+        let name: String = match html.select(&title_selector).next() {
+            Some(title) => title.inner_html(),
+            None => "".to_string(),
+        };
+        let link = Link {
+            name: name,
+            href: url.to_string(),
+            tags: tags,
+        };
+        if !link.tags.is_empty() {
+            let mut tags = link.tags.join("#");
+            tags.insert(0, '#');
+            return Some(format!("[{}]({}){}", link.name, link.href, tags));
+        }
+        return Some(format!("[{}]({})", link.name, link.href));
+    }
+    None
+}
+
+// preformated markdown link
 pub fn link_line_to_struct(link: &str) -> Option<Link> {
     lazy_static! {
         static ref RE_MD_LINK: Regex =
-            Regex::new(r"\[(?P<title>.+)\]\((?P<href>.+)\)(?P<tags>(#[\w\-_]+)*)").unwrap();
+            Regex::new(r"^\[(?P<title>.+)\]\((?P<href>.+)\)(?P<tags>(#[\w\-_]+)*)$").unwrap();
     }
     if let Some(captures) = RE_MD_LINK.captures(&link) {
         let title = captures.name("title").map_or("", |t| t.as_str());
@@ -119,9 +160,8 @@ pub fn link_line_to_struct(link: &str) -> Option<Link> {
                 .collect(),
         };
         return Some(link_file);
-    } else {
-        return None;
     }
+    return None;
 }
 
 pub fn format_link_file_content(link: Link) -> Result<String, Box<dyn Error>> {
@@ -137,24 +177,22 @@ pub fn format_link_file_content(link: Link) -> Result<String, Box<dyn Error>> {
     Ok(content)
 }
 
-// pub fn add_link(line: String) -> Result<&'static str, Box<dyn Error>> {
-pub fn add_link(line: String) -> Result<(), Box<dyn Error>> {
+pub fn add_link(line: String) -> Result<String, Box<dyn Error>> {
     if let Some(link) = link_line_to_struct(&line) {
         let mut path = exomem_dir_path()?;
-        path.push(format!("{}.md", link.name));
-        let mut file = File::create(path)?;
+        lazy_static! {
+            static ref RE_FILE_NAME_CHARS: Regex = Regex::new(r"[^[[:word:]]\- ]").unwrap();
+        }
+        let file_name = RE_FILE_NAME_CHARS.replace_all(link.name.as_str(), "_");
+        path.push(format!("{}.md", file_name));
+        let mut file = File::create(path.clone())?;
         let content = format_link_file_content(link)?;
         file.write_all(content.as_bytes())?;
-        // if let Some(s) = path.to_str() {
-        //     // return Ok(s);
-        //     return Ok(());
-        // } else {
-        //     unreachable!();
-        // }
-        Ok(())
-    } else {
-        return Err(Box::new(LinkTitleError { 0: "foo".into() }));
+        return Ok(format!("{:?}", path));
     }
+    return Err(Box::new(LinkTitleError {
+        0: "Unsupported link format".into(),
+    }));
 }
 
 #[cfg(test)]
@@ -194,7 +232,7 @@ mod test {
             tags: vec!["foo-tag".to_string(), "bar_tag".to_string()],
         };
         let s = "[foo-title](https://foo.tld)#foo-tag#bar_tag";
-        if let Some(link_file) = link_to_struct(s) {
+        if let Some(link_file) = link_line_to_struct(s) {
             assert_eq!(expected, link_file);
         } else {
             panic!();

@@ -1,12 +1,10 @@
 use clap::{ArgGroup, Parser};
+use clipboard::{ClipboardContext, ClipboardProvider};
 use eframe::egui;
 use egui::plot::{Plot, Points};
 use egui::widgets::plot::Legend;
 use egui::widgets::plot::MarkerShape::Circle;
-use exomem::{
-    add_link, exomem_dir_path, find_md_file_paths, format_link_file_content, link_line_to_struct,
-    process_files,
-};
+use exomem::{add_link, exomem_dir_path, find_md_file_paths, process_files, url_to_markdown_link};
 use rustyline::completion::{Completer, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::Highlighter;
@@ -17,6 +15,9 @@ use rustyline::{CompletionType, Config, Context, EditMode};
 use rustyline_derive::{Helper, Hinter};
 use std::collections::HashSet;
 use std::error::Error;
+
+const PROMPT_OK: &str = "✓";
+const PROMPT_ERR: &str = "✗";
 
 #[derive(Helper, Hinter)]
 struct TagHelper {
@@ -46,13 +47,16 @@ impl Completer for TagHelper {
         }
         // match commands
         if line.starts_with(":") {
-            return Ok((
-                pos - line.len(),
-                vec![Pair {
-                    display: ":add".to_string(),
-                    replacement: ":add".to_string(),
-                }],
-            ));
+            let commands = vec![":add", ":format"];
+            let candidates = commands
+                .iter()
+                .filter(|c| c.starts_with(line))
+                .map(|c| Pair {
+                    display: c.to_string(),
+                    replacement: c.to_string(),
+                })
+                .collect();
+            return Ok((pos - line.len(), candidates));
         }
         // match tags
         let query: Vec<&str> = line.split("+").collect::<Vec<&str>>();
@@ -171,11 +175,28 @@ fn main() -> Result<(), Box<dyn Error>> {
                 if line.starts_with(":add ") {
                     if let Some(link_line) = line.splitn(2, " ").nth(1) {
                         match add_link(link_line.to_string()) {
-                            Ok(_) => println!("✓"),
-                            Err(err) => println!("✗ {:?}", err),
+                            Ok(file_name) => println!("{PROMPT_OK} {file_name}"),
+                            Err(err) => println!("{PROMPT_ERR} {:?}", err),
                         }
                     }
                     continue;
+                }
+                if line.starts_with(":format ") {
+                    if let Some(link_line) = line.splitn(2, " ").nth(1) {
+                        match url_to_markdown_link(&link_line) {
+                            Some(link) => {
+                                println!("{PROMPT_OK} {}", link);
+
+                                let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
+
+                                ctx.set_contents(link.to_owned()).unwrap();
+                            }
+                            None => {
+                                println!("Fail");
+                            }
+                        }
+                        continue;
+                    }
                 }
 
                 let query: Vec<&str> = line.split("+").collect();
