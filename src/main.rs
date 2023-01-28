@@ -1,4 +1,4 @@
-use clap::{ArgGroup, Parser};
+use clap::{ArgGroup, Parser, Subcommand};
 use clipboard::{ClipboardContext, ClipboardProvider};
 use eframe::egui;
 use egui::plot::{Plot, Points};
@@ -121,6 +121,21 @@ impl eframe::App for App {
     }
 }
 
+fn format_link(link_line: &str) -> Option<String> {
+    match url_to_markdown_link(&link_line) {
+        Some(link) => {
+            println!("{PROMPT_OK} {}", link);
+            let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
+            ctx.set_contents(link.to_owned()).unwrap();
+            Some(link)
+        }
+        None => {
+            println!("{PROMPT_ERR} Formating failed");
+            None
+        }
+    }
+}
+
 fn gui() {
     eframe::run_native(
         "exomem",
@@ -129,9 +144,26 @@ fn gui() {
     );
 }
 
+fn cli(args: Args) {
+    match &args.command {
+        Commands::Format { link, store } => {
+            if *store {
+                if let Some(formated_link) = format_link(link) {
+                    match add_link(formated_link.to_string()) {
+                        Ok(file_name) => println!("{PROMPT_OK} {file_name}"),
+                        Err(err) => println!("{PROMPT_ERR} {:?}", err),
+                    }
+                }
+            } else {
+                format_link(link);
+            }
+        }
+    }
+}
+
 #[derive(Parser, Debug)]
 #[command(version)]
-#[command(group(ArgGroup::new("mode").required(false).args(["repl", "gui"])))]
+#[command(group(ArgGroup::new("mode").required(false).args(["repl", "gui","cli"])))]
 struct Args {
     #[arg(short, long, default_value_t = true)]
     repl: bool,
@@ -139,11 +171,27 @@ struct Args {
     gui: bool,
     #[arg(default_value_t = String::from("~/exomem.d"))]
     dir: String,
+    #[arg(short, long, default_value_t = false)]
+    cli: bool,
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    Format {
+        link: String,
+        #[arg(short, long, default_value_t = false)]
+        store: bool,
+    },
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
-
+    if args.cli {
+        cli(args);
+        return Ok(());
+    }
     if args.gui {
         gui();
         return Ok(());
@@ -183,18 +231,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 if line.starts_with(":format ") {
                     if let Some(link_line) = line.splitn(2, " ").nth(1) {
-                        match url_to_markdown_link(&link_line) {
-                            Some(link) => {
-                                println!("{PROMPT_OK} {}", link);
-
-                                let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
-
-                                ctx.set_contents(link.to_owned()).unwrap();
-                            }
-                            None => {
-                                println!("Fail");
-                            }
-                        }
+                        format_link(link_line);
                         continue;
                     }
                 }
@@ -243,7 +280,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 break;
             }
             Err(err) => {
-                println!("{err:?}");
+                println!("{PROMPT_ERR} {err:?}");
             }
         }
     }
