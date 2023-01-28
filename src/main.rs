@@ -1,9 +1,5 @@
 use clap::{ArgGroup, Parser, Subcommand};
 use clipboard::{ClipboardContext, ClipboardProvider};
-use eframe::egui;
-use egui::plot::{Plot, Points};
-use egui::widgets::plot::Legend;
-use egui::widgets::plot::MarkerShape::Circle;
 use exomem::{add_link, exomem_dir_path, find_md_file_paths, process_files, url_to_markdown_link};
 use rustyline::completion::{Completer, Pair};
 use rustyline::error::ReadlineError;
@@ -90,37 +86,6 @@ impl Highlighter for TagHelper {}
 
 impl Validator for TagHelper {}
 
-#[derive(Default)]
-struct App {}
-
-impl App {
-    fn new(_cc: &eframe::CreationContext<'_>) -> Self {
-        Self::default()
-    }
-}
-
-impl eframe::App for App {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            // TODO: implement files/tag graph
-            let tag_points = vec![([1.0, 1.0], "foo"), ([2.0, 2.5], "bar")];
-            let named_tag_points: Vec<Points> = tag_points
-                .iter()
-                .map(|p| Points::new(vec![p.0]).shape(Circle).radius(5.0).name(p.1))
-                .collect();
-            Plot::new("Files with tags")
-                .view_aspect(1.0)
-                .show_axes([false; 2])
-                .legend(Legend::default())
-                .show(ui, |plot_ui| {
-                    for points in named_tag_points {
-                        plot_ui.points(points);
-                    }
-                });
-        });
-    }
-}
-
 fn format_link(link_line: &str) -> Option<String> {
     match url_to_markdown_link(&link_line) {
         Some(link) => {
@@ -137,16 +102,14 @@ fn format_link(link_line: &str) -> Option<String> {
 }
 
 fn gui() {
-    eframe::run_native(
-        "exomem",
-        eframe::NativeOptions::default(),
-        Box::new(|cc| Box::new(App::new(cc))),
-    );
+    std::process::Command::new("emg")
+        .spawn()
+        .expect("Launching GUI failed");
 }
 
-fn cli(args: Args) {
+fn cli(args: Args) -> Result<(), clap::Error> {
     match &args.command {
-        Commands::Format { link, store } => {
+        Some(Commands::Format { link, store }) => {
             if *store {
                 if let Some(formated_link) = format_link(link) {
                     match add_link(formated_link.to_string()) {
@@ -158,12 +121,18 @@ fn cli(args: Args) {
                 format_link(link);
             }
         }
+        None => {
+            return Err(clap::Error::new(
+                clap::error::ErrorKind::MissingRequiredArgument,
+            ));
+        }
     }
+    Ok(())
 }
 
 #[derive(Parser, Debug)]
 #[command(version)]
-#[command(group(ArgGroup::new("mode").required(false).args(["repl", "gui","cli"])))]
+#[command(group(ArgGroup::new("mode").required(false).args(["repl", "gui", "cli"])))]
 struct Args {
     #[arg(short, long, default_value_t = true)]
     repl: bool,
@@ -174,7 +143,7 @@ struct Args {
     #[arg(short, long, default_value_t = false)]
     cli: bool,
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -189,7 +158,10 @@ enum Commands {
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
     if args.cli {
-        cli(args);
+        // Subcommand required for CLI mode
+        if let Err(err) = cli(args) {
+            err.print().expect("Printing error failed");
+        }
         return Ok(());
     }
     if args.gui {
