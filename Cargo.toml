@@ -11,7 +11,6 @@ regex = "1.7.0"
 rustyline = "10.0.0"
 rustyline-derive = "0.7.0"
 lazy_static = "1.4.0"
-eframe = "0.20.1"
 clap = { version = "4.0.32", features = ["derive"] }
 fdg-macroquad = { path = "dep/fdg/fdg-macroquad", version = "0.4.0"}
 itertools = "0.10.5"
