@@ -112,7 +112,10 @@ pub fn url_to_markdown_link(url: &str) -> Option<String> {
         let keywords_selector = Selector::parse(r#"meta[name="keywords"]"#).unwrap();
         let tags: Vec<String> = match html.select(&keywords_selector).next() {
             Some(meta) => match meta.value().attr("content") {
-                Some(keywords) => keywords.split(",").map(|k| k.trim().to_string()).collect(),
+                Some(keywords) => keywords
+                    .split(",")
+                    .map(|k| k.trim().replace(" ", "_").to_string())
+                    .collect(),
                 None => vec![],
             },
             None => vec![],
@@ -120,12 +123,12 @@ pub fn url_to_markdown_link(url: &str) -> Option<String> {
         let title_selector = Selector::parse(r#"title"#).unwrap();
         let name: String = match html.select(&title_selector).next() {
             Some(title) => title.inner_html(),
-            None => "".to_string(),
+            None => RE_URL.replace_all(url, "").to_string(),
         };
         let link = Link {
-            name: name,
+            name: name.trim().to_string(),
             href: url.to_string(),
-            tags: tags,
+            tags,
         };
         if !link.tags.is_empty() {
             let mut tags = link.tags.join("#");
