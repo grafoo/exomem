@@ -183,7 +183,11 @@ pub fn add_link(line: String) -> Result<String, Box<dyn Error>> {
         lazy_static! {
             static ref RE_FILE_NAME_CHARS: Regex = Regex::new(r"[^[[:word:]]\- ]").unwrap();
         }
-        let file_name = RE_FILE_NAME_CHARS.replace_all(link.name.as_str(), "_");
+        lazy_static! {
+            static ref RE_DASHABLE_CHARS: Regex = Regex::new(r"[—\|/]").unwrap();
+        }
+        let dashed_link_name = RE_DASHABLE_CHARS.replace_all(link.name.as_str(), "-");
+        let file_name = RE_FILE_NAME_CHARS.replace_all(&dashed_link_name, "_");
         path.push(format!("{}.md", file_name));
         let mut file = File::create(path.clone())?;
         let content = format_link_file_content(link)?;
