@@ -12,8 +12,9 @@ use rustyline_derive::{Helper, Hinter};
 use std::collections::HashSet;
 use std::error::Error;
 
-const PROMPT_OK: &str = "✓";
-const PROMPT_ERR: &str = "✗";
+const PROMPT_OK: &str = "\u{2713}";
+const PROMPT_ERR: &str = "\u{2717}";
+const PROMPT_BRAIN: &str = "\u{1f9e0}";
 
 #[derive(Helper, Hinter)]
 struct TagHelper {
@@ -189,7 +190,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         tags: helper_tags,
     }));
     loop {
-        let readline = rl.readline("# ");
+        let readline = rl.readline(PROMPT_BRAIN);
         match readline {
             Ok(line) => {
                 if line.starts_with(":add ") {
