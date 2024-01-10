@@ -6,22 +6,29 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-glob = "0.3.0"
-regex = "1.7.0"
-rustyline = "10.0.0"
-rustyline-derive = "0.7.0"
-lazy_static = "1.4.0"
-clap = { version = "4.0.32", features = ["derive"] }
-fdg-macroquad = { path = "dep/fdg/fdg-macroquad", version = "0.4.0"}
-itertools = "0.10.5"
-ureq = "2.6.2"
-scraper = "0.14.0"
-clipboard = "0.5.0"
+# NOUSE begin: see ideas
+# glob = "0.3.0"
+# regex = "1.7.0"
+# rustyline = "10.0.0"
+# rustyline-derive = "0.7.0"
+# lazy_static = "1.4.0"
+# clap = { version = "4.0.32", features = ["derive"] }
+# fdg-macroquad = { path = "dep/fdg/fdg-macroquad", version = "0.4.0"}
+# itertools = "0.10.5"
+# ureq = "2.6.2"
+# scraper = "0.14.0"
+# clipboard = "0.5.0"
+# NOUSE end: see ideas
+eframe = "0.25.0"
+egui_plot = "0.25.0"
+fdg-sim = "0.9.1"
 
-[[bin]]
-name = "em"
-path = "src/main.rs"
-
-[[bin]]
-name = "emg"
-path = "src/gui.rs"
+# NOUSE begin: see ideas
+# [[bin]]
+# name = "em"
+# path = "src/main.rs"
+# 
+# [[bin]]
+# name = "emg"
+# path = "src/gui.rs"
+# NOUSE begin: see ideas
