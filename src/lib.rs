@@ -4,12 +4,31 @@ use regex::Regex;
 use scraper::{Html, Selector};
 use std::collections::{HashMap, HashSet};
 use std::env;
-use std::error::Error;
+use std::fmt;
 use std::fs::File;
 use std::io::Write;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use ureq;
+
+pub enum ExomemError {
+    HomeEnvVarLookup,
+    LinkTitleParse,
+    FileCreate,
+    FileWrite,
+}
+
+impl fmt::Display for ExomemError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl fmt::Debug for ExomemError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} :: file: {}, line: {}", self, file!(), line!())
+    }
+}
 
 pub fn find_md_file_paths(exomem_dir: &Path) -> Paths {
     let dir = exomem_dir.to_str().unwrap();
@@ -72,17 +91,23 @@ pub fn process_files(
     (files_with_tags, tags_with_files)
 }
 
-pub fn home_path() -> Result<PathBuf, Box<dyn Error>> {
-    let home = env::var("HOME")?;
-    Ok(PathBuf::from(home))
+pub fn home_path() -> Result<PathBuf, ExomemError> {
+    match env::var("HOME") {
+        Ok(home) => Ok(PathBuf::from(home)),
+        Err(_) => Err(ExomemError::HomeEnvVarLookup),
+    }
 }
 
-pub fn exomem_dir_path() -> Result<PathBuf, Box<dyn Error>> {
-    let mut exomem_dir_path = PathBuf::from("/");
-    let home_path = home_path()?;
-    exomem_dir_path.push(home_path);
-    exomem_dir_path.push("exomem.d");
-    Ok(exomem_dir_path)
+pub fn exomem_dir_path() -> Result<PathBuf, ExomemError> {
+    match home_path() {
+        Ok(home_path) => {
+            let mut exomem_dir_path = PathBuf::from("/");
+            exomem_dir_path.push(home_path);
+            exomem_dir_path.push("exomem.d");
+            Ok(exomem_dir_path)
+        }
+        Err(err) => Err(err),
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -90,15 +115,6 @@ pub struct Link {
     name: String,
     href: String,
     tags: Vec<String>,
-}
-
-#[derive(Debug)]
-pub struct LinkTitleError(Box<dyn Error>);
-impl std::error::Error for LinkTitleError {}
-impl std::fmt::Display for LinkTitleError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "LinkTitleError: {}", self.0)
-    }
 }
 
 pub fn url_to_markdown_link(url: &str) -> Option<String> {
@@ -167,7 +183,7 @@ pub fn link_line_to_struct(link: &str) -> Option<Link> {
     return None;
 }
 
-pub fn format_link_file_content(link: Link) -> Result<String, Box<dyn Error>> {
+pub fn format_link_file_content(link: Link) -> String {
     let mut content = String::from("");
     for tag in &link.tags {
         content.push_str(format!("#{tag} ").as_str());
@@ -177,29 +193,35 @@ pub fn format_link_file_content(link: Link) -> Result<String, Box<dyn Error>> {
         content.push_str(format!("\n\n").as_str());
     }
     content.push_str(format!("[{}]({})\n", link.name, link.href).as_str());
-    Ok(content)
+    content
 }
 
-pub fn add_link(line: String) -> Result<String, Box<dyn Error>> {
-    if let Some(link) = link_line_to_struct(&line) {
-        let mut path = exomem_dir_path()?;
-        lazy_static! {
-            static ref RE_FILE_NAME_CHARS: Regex = Regex::new(r"[^[[:word:]]\- ]").unwrap();
+pub fn add_link(line: String) -> Result<String, ExomemError> {
+    match link_line_to_struct(&line) {
+        Some(link) => {
+            let mut path = exomem_dir_path()?;
+            lazy_static! {
+                static ref RE_FILE_NAME_CHARS: Regex = Regex::new(r"[^[[:word:]]\- ]").unwrap();
+            }
+            lazy_static! {
+                static ref RE_DASHABLE_CHARS: Regex = Regex::new(r"[—\|/]").unwrap();
+            }
+            let dashed_link_name = RE_DASHABLE_CHARS.replace_all(link.name.as_str(), "-");
+            let file_name = RE_FILE_NAME_CHARS.replace_all(&dashed_link_name, "_");
+            path.push(format!("{}.md", file_name));
+            match File::create(path.clone()) {
+                Ok(mut file) => {
+                    let content = format_link_file_content(link);
+                    match file.write_all(content.as_bytes()) {
+                        Ok(_) => Ok(format!("{:?}", path)),
+                        Err(_) => Err(ExomemError::FileWrite),
+                    }
+                }
+                Err(_) => Err(ExomemError::FileCreate),
+            }
         }
-        lazy_static! {
-            static ref RE_DASHABLE_CHARS: Regex = Regex::new(r"[—\|/]").unwrap();
-        }
-        let dashed_link_name = RE_DASHABLE_CHARS.replace_all(link.name.as_str(), "-");
-        let file_name = RE_FILE_NAME_CHARS.replace_all(&dashed_link_name, "_");
-        path.push(format!("{}.md", file_name));
-        let mut file = File::create(path.clone())?;
-        let content = format_link_file_content(link)?;
-        file.write_all(content.as_bytes())?;
-        return Ok(format!("{:?}", path));
+        None => Err(ExomemError::LinkTitleParse),
     }
-    return Err(Box::new(LinkTitleError {
-        0: "Unsupported link format".into(),
-    }));
 }
 
 #[cfg(test)]
